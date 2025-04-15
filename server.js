@@ -1,36 +1,49 @@
 require("dotenv").config();
 const express = require("express");
+const axios = require("axios");
 const cors = require("cors");
-const fetch = require("node-fetch");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send("Backend is running! ✅");
+});
+
+app.post("/push", async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    const response = await axios.post(
+      "https://api.line.me/v2/bot/message/broadcast",
+      { messages: [{ type: "text", text: message }] },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.LINE_ACCESS_TOKEN}`,
+        },
+      }
+    );
+
+    res.status(200).json({ status: "Message sent", response: response.data });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: "Failed", error: error.message });
+  }
+});
+
 app.post("/save-order", async (req, res) => {
   try {
-    const data = req.body;
-
-    const response = await fetch(process.env.APPSCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
-
-    const text = await response.text();
-
-    if (response.ok) {
-      console.log("✅ ส่งข้อมูลไปยัง Google Sheets สำเร็จ");
-      res.status(200).json({ message: "บันทึกข้อมูลสำเร็จ", result: text });
-    } else {
-      console.error("❌ ส่งข้อมูลไปยัง Google Sheets ล้มเหลว", text);
-      res.status(500).json({ message: "เกิดข้อผิดพลาด", error: text });
-    }
+    const response = await axios.post(process.env.APPSCRIPT_URL, req.body);
+    res.status(200).json({ status: "Saved to sheet", data: response.data });
   } catch (error) {
-    console.error("❌ เกิดข้อผิดพลาด:", error);
-    res.status(500).json({ message: "เกิดข้อผิดพลาด", error: error.message });
+    console.error(error);
+    res.status(500).json({ status: "Failed to save", error: error.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+});
